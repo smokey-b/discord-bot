@@ -14,7 +14,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ================= DATA LOAD (ONLY ONCE) =================
+# ================= DATA =================
 DATA_FILE = "data.json"
 
 def load_data():
@@ -34,14 +34,9 @@ data = load_data()
 
 def get_user(user_id):
     uid = str(user_id)
-
     if uid not in data:
-        data[uid] = {
-            "coins": 1000,
-            "last_daily": 0
-        }
+        data[uid] = {"coins": 1000, "last_daily": 0}
         save_data()
-
     return data[uid]
 
 def update_user(user_id, user_data):
@@ -56,73 +51,164 @@ shop = {
 }
 
 # ================= BLACKJACK =================
-def draw_card():
-    return random.randint(1, 11)
+def create_deck():
+    deck = []
+    suits = ["♠", "♥", "♦", "♣"]
+    ranks = {
+        "A": 11, "2": 2, "3": 3, "4": 4, "5": 5,
+        "6": 6, "7": 7, "8": 8, "9": 9, "10": 10,
+        "J": 10, "Q": 10, "K": 10
+    }
+    for suit in suits:
+        for rank, value in ranks.items():
+            deck.append((rank, suit, value))
+    random.shuffle(deck)
+    return deck
 
-def hand_value(hand):
-    return sum(hand)
+def calculate_hand(hand):
+    value = sum(card[2] for card in hand)
+    aces = sum(1 for card in hand if card[0] == "A")
+    while value > 21 and aces:
+        value -= 10
+        aces -= 1
+    return value
+
+def format_hand(hand):
+    return " ".join([f"{c[0]}{c[1]}" for c in hand])
 
 class BlackjackView(discord.ui.View):
-    def __init__(self, ctx, player, dealer, bet, user_data):
-        super().__init__(timeout=30)
+    def __init__(self, ctx, bet, user_data):
+        super().__init__(timeout=40)
         self.ctx = ctx
-        self.player = player
-        self.dealer = dealer
         self.bet = bet
         self.user_data = user_data
-        self.ended = False
+        self.deck = create_deck()
 
-    async def finish(self, interaction, text, change):
-        if self.ended:
-            return
-        self.ended = True
+        self.hands = [[self.deck.pop(), self.deck.pop()]]
+        self.current_hand = 0
+        self.dealer = [self.deck.pop(), self.deck.pop()]
 
-        self.user_data["coins"] += change
+    def current(self):
+        return self.hands[self.current_hand]
+
+    def get_message(self):
+        hand = self.current()
+        return (
+            f"Hand {self.current_hand+1}/{len(self.hands)}\n"
+            f"Your: {format_hand(hand)} ({calculate_hand(hand)})\n"
+            f"Dealer: {self.dealer[0][0]}{self.dealer[0][1]}"
+        )
+
+    async def end_game(self, interaction):
+        while calculate_hand(self.dealer) < 17:
+            self.dealer.append(self.deck.pop())
+
+        dealer_val = calculate_hand(self.dealer)
+        total_change = 0
+        results = []
+
+        for hand in self.hands:
+            player_val = calculate_hand(hand)
+
+            if player_val > 21:
+                results.append(f"{format_hand(hand)} → Bust ❌")
+                total_change -= self.bet
+            elif dealer_val > 21 or player_val > dealer_val:
+                if player_val == 21 and len(hand) == 2:
+                    win = int(self.bet * 1.5)
+                    results.append(f"{format_hand(hand)} → Blackjack! 🎉 (+{win})")
+                    total_change += win
+                else:
+                    results.append(f"{format_hand(hand)} → Win 🎉 (+{self.bet})")
+                    total_change += self.bet
+            elif player_val == dealer_val:
+                results.append(f"{format_hand(hand)} → Push 🤝")
+            else:
+                results.append(f"{format_hand(hand)} → Lose ❌")
+                total_change -= self.bet
+
+        self.user_data["coins"] += total_change
         update_user(self.ctx.author.id, self.user_data)
 
         for item in self.children:
             item.disabled = True
 
+        text = f"Dealer: {format_hand(self.dealer)} ({dealer_val})\n\n"
+        text += "\n".join(results)
+        text += f"\n\n💰 Balance: {self.user_data['coins']}"
+
         await interaction.response.edit_message(content=text, view=self)
-        self.stop()
 
     @discord.ui.button(label="Hit", style=discord.ButtonStyle.green)
     async def hit(self, interaction, button):
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Not your game!", ephemeral=True)
 
-        self.player.append(draw_card())
+        hand = self.current()
+        hand.append(self.deck.pop())
 
-        if hand_value(self.player) > 21:
-            return await self.finish(interaction, f"You bust! ❌ {self.player}", -self.bet)
-
-        await interaction.response.edit_message(
-            content=f"Your hand: {self.player} ({hand_value(self.player)})\nDealer: {self.dealer[0]}",
-            view=self
-        )
+        if calculate_hand(hand) > 21:
+            if self.current_hand + 1 < len(self.hands):
+                self.current_hand += 1
+                await interaction.response.edit_message(content=self.get_message(), view=self)
+            else:
+                await self.end_game(interaction)
+        else:
+            await interaction.response.edit_message(content=self.get_message(), view=self)
 
     @discord.ui.button(label="Stand", style=discord.ButtonStyle.red)
     async def stand(self, interaction, button):
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Not your game!", ephemeral=True)
 
-        while hand_value(self.dealer) < 17:
-            self.dealer.append(draw_card())
-
-        p = hand_value(self.player)
-        d = hand_value(self.dealer)
-
-        if d > 21 or p > d:
-            await self.finish(interaction, f"You win! 🎉 Dealer: {self.dealer}", self.bet)
-        elif p == d:
-            await self.finish(interaction, f"Tie! Dealer: {self.dealer}", 0)
+        if self.current_hand + 1 < len(self.hands):
+            self.current_hand += 1
+            await interaction.response.edit_message(content=self.get_message(), view=self)
         else:
-            await self.finish(interaction, f"You lose! ❌ Dealer: {self.dealer}", -self.bet)
+            await self.end_game(interaction)
 
-# ================= EVENTS =================
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
+    @discord.ui.button(label="Double", style=discord.ButtonStyle.blurple)
+    async def double(self, interaction, button):
+        if interaction.user != self.ctx.author:
+            return await interaction.response.send_message("Not your game!", ephemeral=True)
+
+        if self.user_data["coins"] < self.bet:
+            return await interaction.response.send_message("Not enough coins!", ephemeral=True)
+
+        self.user_data["coins"] -= self.bet
+        self.bet *= 2
+
+        hand = self.current()
+        hand.append(self.deck.pop())
+
+        if self.current_hand + 1 < len(self.hands):
+            self.current_hand += 1
+            await interaction.response.edit_message(content=self.get_message(), view=self)
+        else:
+            await self.end_game(interaction)
+
+    @discord.ui.button(label="Split", style=discord.ButtonStyle.gray)
+    async def split(self, interaction, button):
+        if interaction.user != self.ctx.author:
+            return await interaction.response.send_message("Not your game!", ephemeral=True)
+
+        hand = self.current()
+
+        if len(hand) != 2 or hand[0][2] != hand[1][2]:
+            return await interaction.response.send_message("Cannot split!", ephemeral=True)
+
+        if self.user_data["coins"] < self.bet:
+            return await interaction.response.send_message("Not enough coins!", ephemeral=True)
+
+        self.user_data["coins"] -= self.bet
+
+        new_hand1 = [hand[0], self.deck.pop()]
+        new_hand2 = [hand[1], self.deck.pop()]
+
+        self.hands = [new_hand1, new_hand2]
+        self.current_hand = 0
+
+        await interaction.response.edit_message(content=self.get_message(), view=self)
 
 # ================= COMMANDS =================
 
@@ -168,10 +254,25 @@ async def buy(ctx, *, item: str):
     user["coins"] -= price
     update_user(ctx.author.id, user)
 
-    await ctx.send(f"You bought {item} 🛒")
+    await ctx.send(f"You bought {item}")
 
     admin = await bot.fetch_user(ADMIN_USER_ID)
     await admin.send(f"{ctx.author} bought {item} for {price}")
+
+@bot.command()
+async def top(ctx):
+    sorted_users = sorted(data.items(), key=lambda x: x[1]["coins"], reverse=True)
+
+    msg = "**🏆 Leaderboard:**\n"
+    for i, (uid, udata) in enumerate(sorted_users[:10], start=1):
+        try:
+            user = await bot.fetch_user(int(uid))
+            name = user.name
+        except:
+            name = "Unknown"
+        msg += f"{i}. {name} — {udata['coins']} coins\n"
+
+    await ctx.send(msg)
 
 @bot.command()
 async def blackjack(ctx, bet: int):
@@ -180,27 +281,11 @@ async def blackjack(ctx, bet: int):
     if bet <= 0 or bet > user["coins"]:
         return await ctx.send("Invalid bet.")
 
-    player = [draw_card(), draw_card()]
-    dealer = [draw_card(), draw_card()]
+    user["coins"] -= bet
+    update_user(ctx.author.id, user)
 
-    view = BlackjackView(ctx, player, dealer, bet, user)
-
-    await ctx.send(
-        f"Your hand: {player} ({hand_value(player)})\nDealer: {dealer[0]}",
-        view=view
-    )
-
-@bot.command()
-async def commands(ctx):
-    await ctx.send("""
-!balance
-!daily
-!shop_cmd
-!buy <item>
-!blackjack <bet>
-!addcoins @user <amount>
-!clear <amount>
-""")
+    view = BlackjackView(ctx, bet, user)
+    await ctx.send(view.get_message(), view=view)
 
 @bot.command()
 async def addcoins(ctx, member: discord.Member, amount: int):
@@ -212,15 +297,6 @@ async def addcoins(ctx, member: discord.Member, amount: int):
     update_user(member.id, user)
 
     await ctx.send(f"Added {amount} coins to {member.name}")
-
-@bot.command()
-async def clear(ctx, amount: int = 10):
-    if ctx.author.id != ADMIN_USER_ID:
-        return await ctx.send("No permission.")
-
-    deleted = await ctx.channel.purge(limit=amount + 1)
-    msg = await ctx.send(f"Cleared {len(deleted)-1} messages")
-    await msg.delete(delay=3)
 
 # ================= RUN =================
 TOKEN = os.getenv("TOKEN")
