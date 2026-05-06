@@ -6,7 +6,7 @@ import os
 import time
 
 # ================= CONFIG =================
-ADMIN_USER_ID = 123456789012345678  # 🔴 PUT YOUR DISCORD ID HERE
+ADMIN_USER_ID = 980819870495166474  # 🔴 PUT YOUR DISCORD ID HERE
 
 # ================= SETUP =================
 intents = discord.Intents.default()
@@ -49,8 +49,8 @@ def update_user(user_id, user_data):
 # ================= SHOP =================
 shop = {
     "xanax": 5000,
-    "donator pack": 70000
-    "Test": 1
+    "donator pack": 70000,
+    "Test": 1,
 }
 
 # ================= BLACKJACK HELPERS =================
