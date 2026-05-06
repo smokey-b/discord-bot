@@ -11,7 +11,6 @@ ADMIN_USER_ID = 980819870495166474
 # ================= SETUP =================
 intents = discord.Intents.default()
 intents.message_content = True
-
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ================= DATA =================
@@ -52,22 +51,19 @@ shop = {
 
 # ================= BLACKJACK =================
 def create_deck():
-    deck = []
     suits = ["♠", "♥", "♦", "♣"]
     ranks = {
         "A": 11, "2": 2, "3": 3, "4": 4, "5": 5,
         "6": 6, "7": 7, "8": 8, "9": 9, "10": 10,
         "J": 10, "Q": 10, "K": 10
     }
-    for suit in suits:
-        for rank, value in ranks.items():
-            deck.append((rank, suit, value))
+    deck = [(r, s, v) for s in suits for r, v in ranks.items()]
     random.shuffle(deck)
     return deck
 
 def calculate_hand(hand):
-    value = sum(card[2] for card in hand)
-    aces = sum(1 for card in hand if card[0] == "A")
+    value = sum(c[2] for c in hand)
+    aces = sum(1 for c in hand if c[0] == "A")
     while value > 21 and aces:
         value -= 10
         aces -= 1
@@ -112,20 +108,23 @@ class BlackjackView(discord.ui.View):
 
             if player_val > 21:
                 results.append(f"{format_hand(hand)} → Bust ❌")
-                total_change -= self.bet
+
             elif dealer_val > 21 or player_val > dealer_val:
                 if player_val == 21 and len(hand) == 2:
-                    win = int(self.bet * 1.5)
-                    results.append(f"{format_hand(hand)} → Blackjack! 🎉 (+{win})")
+                    win = int(self.bet * 2.5)
+                    results.append(f"{format_hand(hand)} → Blackjack! 🎉 (+{int(self.bet*1.5)})")
                     total_change += win
                 else:
+                    win = self.bet * 2
                     results.append(f"{format_hand(hand)} → Win 🎉 (+{self.bet})")
-                    total_change += self.bet
+                    total_change += win
+
             elif player_val == dealer_val:
                 results.append(f"{format_hand(hand)} → Push 🤝")
+                total_change += self.bet
+
             else:
                 results.append(f"{format_hand(hand)} → Lose ❌")
-                total_change -= self.bet
 
         self.user_data["coins"] += total_change
         update_user(self.ctx.author.id, self.user_data)
