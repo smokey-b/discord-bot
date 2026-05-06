@@ -50,6 +50,7 @@ def update_user(user_id, user_data):
 shop = {
     "xanax": 5000,
     "donator pack": 70000
+    "Test": 1
 }
 
 # ================= BLACKJACK HELPERS =================
