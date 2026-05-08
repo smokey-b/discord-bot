@@ -1,3 +1,4 @@
+# ================= IMPORTS =================
 import discord
 from discord.ext import commands
 from discord.ext.commands import cooldown, BucketType
@@ -13,12 +14,16 @@ ADMIN_USER_ID = 980819870495166474
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents
+)
 
 # ================= DATA =================
 DATA_FILE = "data.json"
 
 def load_data():
+
     if not os.path.exists(DATA_FILE):
         return {}
 
@@ -28,16 +33,19 @@ def load_data():
     except:
         return {}
 
+data = load_data()
+
 def save_data():
+
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
 
-data = load_data()
-
 def get_user(user_id):
+
     uid = str(user_id)
 
     if uid not in data:
+
         data[uid] = {
             "coins": 1000,
             "premium_points": 0,
@@ -50,7 +58,7 @@ def get_user(user_id):
 
         save_data()
 
-    # Fix old users automatically
+    # Fix old accounts automatically
     if "premium_points" not in data[uid]:
         data[uid]["premium_points"] = 0
 
@@ -65,7 +73,9 @@ def get_user(user_id):
     return data[uid]
 
 def update_user(user_id, user_data):
+
     data[str(user_id)] = user_data
+
     save_data()
 
 # ================= SHOP =================
@@ -110,16 +120,22 @@ def calculate_hand(hand):
 
     value = sum(card[2] for card in hand)
 
-    aces = sum(1 for card in hand if card[0] == "A")
+    aces = sum(
+        1 for card in hand if card[0] == "A"
+    )
 
     while value > 21 and aces:
+
         value -= 10
         aces -= 1
 
     return value
 
 def format_hand(hand):
-    return " ".join([f"{c[0]}{c[1]}" for c in hand])
+
+    return " ".join(
+        [f"{c[0]}{c[1]}" for c in hand]
+    )
 
 class BlackjackView(discord.ui.View):
 
@@ -133,11 +149,16 @@ class BlackjackView(discord.ui.View):
 
         self.deck = create_deck()
 
-        self.hands = [[self.deck.pop(), self.deck.pop()]]
+        self.hands = [
+            [self.deck.pop(), self.deck.pop()]
+        ]
 
         self.current_hand = 0
 
-        self.dealer = [self.deck.pop(), self.deck.pop()]
+        self.dealer = [
+            self.deck.pop(),
+            self.deck.pop()
+        ]
 
         for item in self.children:
             if item.label == "Repeat Bet":
@@ -151,20 +172,29 @@ class BlackjackView(discord.ui.View):
         hand = self.current()
 
         return (
-            f"🃏 Hand {self.current_hand + 1}/{len(self.hands)}\n\n"
+            f"🃏 Hand "
+            f"{self.current_hand + 1}/"
+            f"{len(self.hands)}\n\n"
+
             f"Your Hand:\n"
             f"{format_hand(hand)} "
             f"({calculate_hand(hand)})\n\n"
+
             f"Dealer Shows:\n"
-            f"{self.dealer[0][0]}{self.dealer[0][1]}"
+            f"{self.dealer[0][0]}"
+            f"{self.dealer[0][1]}"
         )
 
     async def end_game(self, interaction):
 
         while calculate_hand(self.dealer) < 17:
-            self.dealer.append(self.deck.pop())
+            self.dealer.append(
+                self.deck.pop()
+            )
 
-        dealer_val = calculate_hand(self.dealer)
+        dealer_val = calculate_hand(
+            self.dealer
+        )
 
         total_change = 0
 
@@ -174,57 +204,78 @@ class BlackjackView(discord.ui.View):
 
             player_val = calculate_hand(hand)
 
+            # Bust
             if player_val > 21:
 
                 results.append(
-                    f"{format_hand(hand)} → Bust ❌"
+                    f"{format_hand(hand)} "
+                    f"→ Bust ❌"
                 )
 
-            elif dealer_val > 21 or player_val > dealer_val:
+            # Win
+            elif (
+                dealer_val > 21
+                or player_val > dealer_val
+            ):
 
-                if player_val == 21 and len(hand) == 2:
+                # Blackjack payout
+                if (
+                    player_val == 21
+                    and len(hand) == 2
+                ):
 
                     win = int(self.bet * 2.5)
 
-                    results.append(
-                        f"{format_hand(hand)} → Blackjack 🎉"
-                    )
-
                     total_change += win
+
+                    results.append(
+                        f"{format_hand(hand)} "
+                        f"→ Blackjack 🎉"
+                    )
 
                 else:
 
                     win = self.bet * 2
 
-                    results.append(
-                        f"{format_hand(hand)} → Win 🎉"
-                    )
-
                     total_change += win
 
-            elif player_val == dealer_val:
+                    results.append(
+                        f"{format_hand(hand)} "
+                        f"→ Win 🎉"
+                    )
 
-                results.append(
-                    f"{format_hand(hand)} → Push 🤝"
-                )
+            # Push
+            elif player_val == dealer_val:
 
                 total_change += self.bet
 
+                results.append(
+                    f"{format_hand(hand)} "
+                    f"→ Push 🤝"
+                )
+
+            # Lose
             else:
 
                 results.append(
-                    f"{format_hand(hand)} → Lose ❌"
+                    f"{format_hand(hand)} "
+                    f"→ Lose ❌"
                 )
 
         self.user_data["coins"] += total_change
 
-        update_user(self.ctx.author.id, self.user_data)
+        update_user(
+            self.ctx.author.id,
+            self.user_data
+        )
 
         for item in self.children:
+
             if item.label != "Repeat Bet":
                 item.disabled = True
 
         for item in self.children:
+
             if item.label == "Repeat Bet":
                 item.disabled = False
 
@@ -246,8 +297,17 @@ class BlackjackView(discord.ui.View):
             view=self
         )
 
-    @discord.ui.button(label="Hit", style=discord.ButtonStyle.green)
-    async def hit(self, interaction, button):
+    # ================= BUTTONS =================
+
+    @discord.ui.button(
+        label="Hit",
+        style=discord.ButtonStyle.green
+    )
+    async def hit(
+        self,
+        interaction,
+        button
+    ):
 
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message(
@@ -257,7 +317,9 @@ class BlackjackView(discord.ui.View):
 
         hand = self.current()
 
-        hand.append(self.deck.pop())
+        hand.append(
+            self.deck.pop()
+        )
 
         if calculate_hand(hand) > 21:
 
@@ -272,7 +334,9 @@ class BlackjackView(discord.ui.View):
 
             else:
 
-                await self.end_game(interaction)
+                await self.end_game(
+                    interaction
+                )
 
         else:
 
@@ -281,8 +345,15 @@ class BlackjackView(discord.ui.View):
                 view=self
             )
 
-    @discord.ui.button(label="Stand", style=discord.ButtonStyle.red)
-    async def stand(self, interaction, button):
+    @discord.ui.button(
+        label="Stand",
+        style=discord.ButtonStyle.red
+    )
+    async def stand(
+        self,
+        interaction,
+        button
+    ):
 
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message(
@@ -301,10 +372,19 @@ class BlackjackView(discord.ui.View):
 
         else:
 
-            await self.end_game(interaction)
+            await self.end_game(
+                interaction
+            )
 
-    @discord.ui.button(label="Double", style=discord.ButtonStyle.blurple)
-    async def double(self, interaction, button):
+    @discord.ui.button(
+        label="Double",
+        style=discord.ButtonStyle.blurple
+    )
+    async def double(
+        self,
+        interaction,
+        button
+    ):
 
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message(
@@ -324,7 +404,9 @@ class BlackjackView(discord.ui.View):
 
         hand = self.current()
 
-        hand.append(self.deck.pop())
+        hand.append(
+            self.deck.pop()
+        )
 
         if self.current_hand + 1 < len(self.hands):
 
@@ -337,10 +419,19 @@ class BlackjackView(discord.ui.View):
 
         else:
 
-            await self.end_game(interaction)
+            await self.end_game(
+                interaction
+            )
 
-    @discord.ui.button(label="Split", style=discord.ButtonStyle.gray)
-    async def split(self, interaction, button):
+    @discord.ui.button(
+        label="Split",
+        style=discord.ButtonStyle.gray
+    )
+    async def split(
+        self,
+        interaction,
+        button
+    ):
 
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message(
@@ -350,7 +441,11 @@ class BlackjackView(discord.ui.View):
 
         hand = self.current()
 
-        if len(hand) != 2 or hand[0][2] != hand[1][2]:
+        if (
+            len(hand) != 2
+            or hand[0][2] != hand[1][2]
+        ):
+
             return await interaction.response.send_message(
                 "Cannot split!",
                 ephemeral=True
@@ -364,10 +459,20 @@ class BlackjackView(discord.ui.View):
 
         self.user_data["coins"] -= self.bet
 
-        new_hand1 = [hand[0], self.deck.pop()]
-        new_hand2 = [hand[1], self.deck.pop()]
+        new_hand1 = [
+            hand[0],
+            self.deck.pop()
+        ]
 
-        self.hands = [new_hand1, new_hand2]
+        new_hand2 = [
+            hand[1],
+            self.deck.pop()
+        ]
+
+        self.hands = [
+            new_hand1,
+            new_hand2
+        ]
 
         self.current_hand = 0
 
@@ -376,8 +481,15 @@ class BlackjackView(discord.ui.View):
             view=self
         )
 
-    @discord.ui.button(label="Repeat Bet", style=discord.ButtonStyle.secondary)
-    async def repeat_bet(self, interaction, button):
+    @discord.ui.button(
+        label="Repeat Bet",
+        style=discord.ButtonStyle.secondary
+    )
+    async def repeat_bet(
+        self,
+        interaction,
+        button
+    ):
 
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message(
@@ -385,7 +497,9 @@ class BlackjackView(discord.ui.View):
                 ephemeral=True
             )
 
-        user = get_user(self.ctx.author.id)
+        user = get_user(
+            interaction.user.id
+        )
 
         if user["coins"] < self.bet:
             return await interaction.response.send_message(
@@ -395,7 +509,10 @@ class BlackjackView(discord.ui.View):
 
         user["coins"] -= self.bet
 
-        update_user(self.ctx.author.id, user)
+        update_user(
+            interaction.user.id,
+            user
+        )
 
         new_view = BlackjackView(
             self.ctx,
@@ -413,7 +530,9 @@ class BlackjackView(discord.ui.View):
 class SpinAgainView(discord.ui.View):
 
     def __init__(self, ctx):
+
         super().__init__(timeout=120)
+
         self.ctx = ctx
 
     @discord.ui.button(
@@ -438,7 +557,7 @@ class SpinAgainView(discord.ui.View):
 
         if user["premium_points"] < 1:
             return await interaction.response.send_message(
-                "You need 1 premium point.",
+                "Need 1 premium point.",
                 ephemeral=True
             )
 
@@ -446,28 +565,33 @@ class SpinAgainView(discord.ui.View):
 
         roll = random.randint(1, 100)
 
-        if roll <= 70:
+        # 67%
+        if roll <= 67:
 
             prize = "Nothing ❌"
 
-        elif roll <= 90:
+        # 20%
+        elif roll <= 87:
 
             user["inventory"]["xanax"] += 1
 
             prize = "1 Xanax 💊"
 
-        elif roll <= 97:
+        # 9%
+        elif roll <= 96:
 
             user["inventory"]["xanax"] += 2
 
             prize = "2 Xanax 💊💊"
 
+        # 3%
         elif roll <= 99:
 
             user["inventory"]["xanax"] += 5
 
             prize = "5 Xanax 💊💊💊💊💊"
 
+        # 1%
         else:
 
             user["inventory"]["donator pack"] += 1
@@ -481,7 +605,8 @@ class SpinAgainView(discord.ui.View):
 
         await interaction.response.edit_message(
             content=(
-                f"🎡 {interaction.user.name} spun again!\n\n"
+                f"🎡 {interaction.user.name} "
+                f"spun again!\n\n"
                 f"Prize: {prize}"
             ),
             view=self
@@ -491,6 +616,7 @@ class SpinAgainView(discord.ui.View):
 
 @bot.event
 async def on_ready():
+
     print(f"Logged in as {bot.user}")
 
 # ================= COMMANDS =================
@@ -501,8 +627,8 @@ async def balance(ctx):
     user = get_user(ctx.author.id)
 
     await ctx.send(
-        f"{ctx.author.name}, "
-        f"you have {user['coins']} coins 💰"
+        f"{ctx.author.name} "
+        f"has {user['coins']} coins 💰"
     )
 
 @bot.command()
@@ -512,14 +638,19 @@ async def inventory(ctx):
 
     inv = user["inventory"]
 
-    msg = (
-        f"📦 Inventory for {ctx.author.name}\n\n"
-        f"💊 Xanax: {inv['xanax']}\n"
-        f"📦 Donator Pack: {inv['donator pack']}\n\n"
-        f"💎 Premium Points: {user['premium_points']}"
-    )
+    await ctx.send(
+        f"📦 Inventory for "
+        f"{ctx.author.name}\n\n"
 
-    await ctx.send(msg)
+        f"💊 Xanax: "
+        f"{inv['xanax']}\n"
+
+        f"📦 Donator Pack: "
+        f"{inv['donator pack']}\n\n"
+
+        f"💎 Premium Points: "
+        f"{user['premium_points']}"
+    )
 
 @bot.command()
 async def daily(ctx):
@@ -529,6 +660,7 @@ async def daily(ctx):
     now = time.time()
 
     if now - user["last_daily"] < 86400:
+
         return await ctx.send(
             "Come back later ⏳"
         )
@@ -537,7 +669,10 @@ async def daily(ctx):
 
     user["last_daily"] = now
 
-    update_user(ctx.author.id, user)
+    update_user(
+        ctx.author.id,
+        user
+    )
 
     await ctx.send(
         "You got 1000 coins 🎁"
@@ -549,7 +684,11 @@ async def shop_cmd(ctx):
     msg = "**🛒 Shop:**\n"
 
     for item, price in shop.items():
-        msg += f"{item} - {price} coins\n"
+
+        msg += (
+            f"{item} "
+            f"- {price} coins\n"
+        )
 
     await ctx.send(msg)
 
@@ -576,18 +715,42 @@ async def buy(ctx, *, item: str):
 
     user["inventory"][item] += 1
 
-    update_user(ctx.author.id, user)
+    update_user(
+        ctx.author.id,
+        user
+    )
 
     await ctx.send(
         f"You bought {item}"
     )
 
-    admin = await bot.fetch_user(
-        ADMIN_USER_ID
+@bot.command()
+async def convert(ctx, amount: int):
+
+    user = get_user(ctx.author.id)
+
+    if amount <= 0:
+        return await ctx.send(
+            "Invalid amount."
+        )
+
+    if user["inventory"]["xanax"] < amount:
+        return await ctx.send(
+            "Not enough Xanax."
+        )
+
+    user["inventory"]["xanax"] -= amount
+
+    user["premium_points"] += amount
+
+    update_user(
+        ctx.author.id,
+        user
     )
 
-    await admin.send(
-        f"{ctx.author} bought {item}"
+    await ctx.send(
+        f"Converted {amount} Xanax "
+        f"into {amount} premium points 💎"
     )
 
 @bot.command()
@@ -597,47 +760,56 @@ async def wheel(ctx):
 
     if user["premium_points"] < 1:
         return await ctx.send(
-            "You need 1 premium point to spin."
+            "Need 1 premium point."
         )
 
     user["premium_points"] -= 1
 
     roll = random.randint(1, 100)
 
-    if roll <= 70:
+    # 67%
+    if roll <= 67:
 
         prize = "Nothing ❌"
 
-    elif roll <= 90:
+    # 20%
+    elif roll <= 87:
 
         user["inventory"]["xanax"] += 1
 
         prize = "1 Xanax 💊"
 
-    elif roll <= 97:
+    # 9%
+    elif roll <= 96:
 
         user["inventory"]["xanax"] += 2
 
         prize = "2 Xanax 💊💊"
 
+    # 3%
     elif roll <= 99:
 
         user["inventory"]["xanax"] += 5
 
         prize = "5 Xanax 💊💊💊💊💊"
 
+    # 1%
     else:
 
         user["inventory"]["donator pack"] += 1
 
         prize = "1 Donator Pack 📦"
 
-    update_user(ctx.author.id, user)
+    update_user(
+        ctx.author.id,
+        user
+    )
 
     view = SpinAgainView(ctx)
 
     await ctx.send(
-        f"🎡 {ctx.author.name} spun the wheel!\n\n"
+        f"🎡 {ctx.author.name} "
+        f"spun the wheel!\n\n"
         f"Prize: {prize}",
         view=view
     )
@@ -659,14 +831,20 @@ async def top(ctx):
     ):
 
         try:
-            user = await bot.fetch_user(int(uid))
+
+            user = await bot.fetch_user(
+                int(uid)
+            )
+
             name = user.name
+
         except:
+
             name = "Unknown"
 
         msg += (
-            f"{i}. {name} — "
-            f"{udata['coins']} coins\n"
+            f"{i}. {name} "
+            f"— {udata['coins']} coins\n"
         )
 
     await ctx.send(msg)
@@ -678,13 +856,17 @@ async def blackjack(ctx, bet: int):
     user = get_user(ctx.author.id)
 
     if bet <= 0 or bet > user["coins"]:
+
         return await ctx.send(
             "Invalid bet."
         )
 
     user["coins"] -= bet
 
-    update_user(ctx.author.id, user)
+    update_user(
+        ctx.author.id,
+        user
+    )
 
     view = BlackjackView(
         ctx,
@@ -697,6 +879,8 @@ async def blackjack(ctx, bet: int):
         view=view
     )
 
+# ================= ADMIN =================
+
 @bot.command()
 async def addcoins(
     ctx,
@@ -705,15 +889,16 @@ async def addcoins(
 ):
 
     if ctx.author.id != ADMIN_USER_ID:
-        return await ctx.send(
-            "No permission."
-        )
+        return
 
     user = get_user(member.id)
 
     user["coins"] += amount
 
-    update_user(member.id, user)
+    update_user(
+        member.id,
+        user
+    )
 
     await ctx.send(
         f"Added {amount} coins "
@@ -728,15 +913,16 @@ async def addpp(
 ):
 
     if ctx.author.id != ADMIN_USER_ID:
-        return await ctx.send(
-            "No permission."
-        )
+        return
 
     user = get_user(member.id)
 
     user["premium_points"] += amount
 
-    update_user(member.id, user)
+    update_user(
+        member.id,
+        user
+    )
 
     await ctx.send(
         f"Added {amount} premium points "
@@ -747,14 +933,12 @@ async def addpp(
 async def removeitem(
     ctx,
     member: discord.Member,
-    *,
-    item: str
+    item: str,
+    amount: int
 ):
 
     if ctx.author.id != ADMIN_USER_ID:
-        return await ctx.send(
-            "No permission."
-        )
+        return
 
     item = item.lower().strip()
 
@@ -765,18 +949,27 @@ async def removeitem(
             "Invalid item."
         )
 
-    if user["inventory"][item] <= 0:
+    if amount <= 0:
         return await ctx.send(
-            "User has none."
+            "Invalid amount."
         )
 
-    user["inventory"][item] -= 1
+    if user["inventory"][item] < amount:
+        return await ctx.send(
+            f"User only has "
+            f"{user['inventory'][item]}"
+        )
 
-    update_user(member.id, user)
+    user["inventory"][item] -= amount
+
+    update_user(
+        member.id,
+        user
+    )
 
     await ctx.send(
-        f"Removed 1 {item} from "
-        f"{member.name}"
+        f"Removed {amount} {item} "
+        f"from {member.name}"
     )
 
 @bot.command()
@@ -790,6 +983,7 @@ async def commands(ctx):
 !shop_cmd
 !buy <item>
 !inventory
+!convert <amount>
 !wheel
 !blackjack <bet>
 !top
@@ -798,7 +992,7 @@ async def commands(ctx):
 
 !addcoins @user <amount>
 !addpp @user <amount>
-!removeitem @user <item>
+!removeitem @user <item> <amount>
 """)
 
 # ================= RUN =================
