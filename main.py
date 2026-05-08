@@ -17,7 +17,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ================= DATA =================
+# ================= DATA SYSTEM =================
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {}
@@ -59,7 +59,7 @@ shop = {
     "donator pack": 70000
 }
 
-# ================= BLACKJACK =================
+# ================= BLACKJACK HELPERS =================
 def create_deck():
     suits = ["♠", "♥", "♦", "♣"]
     ranks = {
@@ -89,10 +89,10 @@ def hand_value(hand):
 def format_hand(hand):
     return " ".join([f"{c[0]}{c[1]}" for c in hand])
 
+# ================= BLACKJACK =================
 class BlackjackView(discord.ui.View):
     def __init__(self, ctx, bet, user):
         super().__init__(timeout=120)
-
         self.ctx = ctx
         self.bet = bet
         self.user = user
@@ -101,7 +101,8 @@ class BlackjackView(discord.ui.View):
         self.player = [self.deck.pop(), self.deck.pop()]
         self.dealer = [self.deck.pop(), self.deck.pop()]
 
-    def end(self, interaction):
+    def resolve(self, interaction):
+
         while hand_value(self.dealer) < 17:
             self.dealer.append(self.deck.pop())
 
@@ -134,25 +135,27 @@ Result: {result}
 
     @discord.ui.button(label="Hit", style=discord.ButtonStyle.green)
     async def hit(self, interaction, button):
+
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Not your game!", ephemeral=True)
 
         self.player.append(self.deck.pop())
 
         if hand_value(self.player) > 21:
-            await interaction.response.edit_message(content=self.end(interaction), view=self)
+            await interaction.response.edit_message(content=self.resolve(interaction), view=self)
         else:
             await interaction.response.edit_message(
-                content=f"Your hand: {format_hand(self.player)} ({hand_value(self.player)})",
+                content=f"{format_hand(self.player)} ({hand_value(self.player)})",
                 view=self
             )
 
     @discord.ui.button(label="Stand", style=discord.ButtonStyle.red)
     async def stand(self, interaction, button):
+
         if interaction.user != self.ctx.author:
             return await interaction.response.send_message("Not your game!", ephemeral=True)
 
-        await interaction.response.edit_message(content=self.end(interaction), view=self)
+        await interaction.response.edit_message(content=self.resolve(interaction), view=self)
 
 # ================= WHEEL =================
 class SpinAgainView(discord.ui.View):
@@ -196,7 +199,7 @@ class SpinAgainView(discord.ui.View):
 
         else:
             user["inventory"]["donator pack"] += 1
-            prize = "1 Donator Pack 📦"
+            prize = "Donator Pack 📦"
 
         update_user(interaction.user.id, user)
 
@@ -218,6 +221,19 @@ async def balance(ctx):
     await ctx.send(f"{user['coins']} coins 💰")
 
 @bot.command()
+async def inventory(ctx):
+    user = get_user(ctx.author.id)
+    inv = user["inventory"]
+
+    await ctx.send(
+        f"""
+💊 Xanax: {inv['xanax']}
+📦 Donator Pack: {inv['donator pack']}
+💎 Premium Points: {user['premium_points']}
+"""
+    )
+
+@bot.command()
 async def daily(ctx):
     user = get_user(ctx.author.id)
     now = time.time()
@@ -232,17 +248,30 @@ async def daily(ctx):
     await ctx.send("+1000 coins 🎁")
 
 @bot.command()
-async def inventory(ctx):
-    user = get_user(ctx.author.id)
-    inv = user["inventory"]
+async def shop_cmd(ctx):
+    msg = "**🛒 Shop:**\n"
+    for item, price in shop.items():
+        msg += f"{item} - {price}\n"
+    await ctx.send(msg)
 
-    await ctx.send(
-        f"""
-💊 Xanax: {inv['xanax']}
-📦 Donator Pack: {inv['donator pack']}
-💎 Premium Points: {user['premium_points']}
-"""
-    )
+@bot.command()
+async def buy(ctx, *, item: str):
+    item = item.lower().strip()
+
+    if item not in shop:
+        return await ctx.send("Item not found.")
+
+    user = get_user(ctx.author.id)
+    price = shop[item]
+
+    if user["coins"] < price:
+        return await ctx.send("Not enough coins.")
+
+    user["coins"] -= price
+    user["inventory"][item] += 1
+    update_user(ctx.author.id, user)
+
+    await ctx.send(f"You bought {item}")
 
 @bot.command()
 async def convert(ctx, amount: int):
@@ -255,7 +284,7 @@ async def convert(ctx, amount: int):
     user["premium_points"] += amount
     update_user(ctx.author.id, user)
 
-    await ctx.send(f"Converted {amount} Xanax → PP 💎")
+    await ctx.send(f"Converted {amount}")
 
 @bot.command()
 async def wheel(ctx):
@@ -281,7 +310,7 @@ async def wheel(ctx):
         prize = "5 Xanax 💊💊💊💊💊"
     elif roll <= 995:
         user["inventory"]["xanax"] += 20
-        prize = "20 Xanax 💊🔥"
+        prize = "20 Xanax 💊"
     else:
         user["inventory"]["donator pack"] += 1
         prize = "Donator Pack 📦"
@@ -297,7 +326,7 @@ async def top(ctx):
     msg = "🏆 Leaderboard:\n"
 
     for i, (uid, u) in enumerate(sorted_users[:10], 1):
-        msg += f"{i}. {uid} — {u['coins']} coins\n"
+        msg += f"{i}. {uid} — {u['coins']}\n"
 
     await ctx.send(msg)
 
@@ -318,18 +347,19 @@ async def blackjack(ctx, bet: int):
         view=view
     )
 
-# ================= ADMIN =================
-
 @bot.command()
-async def addcoins(ctx, member: discord.Member, amount: int):
-    if ctx.author.id != ADMIN_USER_ID:
-        return
-
-    user = get_user(member.id)
-    user["coins"] += amount
-    update_user(member.id, user)
-
-    await ctx.send("Added coins")
+async def commands(ctx):
+    await ctx.send("""
+!balance
+!daily
+!shop_cmd
+!buy
+!inventory
+!convert
+!wheel
+!blackjack
+!top
+""")
 
 # ================= RUN =================
 bot.run(os.getenv("TOKEN"))
