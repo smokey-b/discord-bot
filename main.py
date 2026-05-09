@@ -629,6 +629,18 @@ async def on_ready():
 # ================= COMMANDS =================
 
 @bot.command()
+async def checkbalance(ctx, member: discord.Member):
+
+    user = get_user(member.id)
+
+    await ctx.send(
+        f"💰 {member.name} has {user['coins']} coins\n"
+        f"💎 Premium Points: {user['premium_points']}\n"
+        f"💊 Xanax: {user['inventory']['xanax']}\n"
+        f"📦 Donator Packs: {user['inventory']['donator pack']}"
+    )
+    
+@bot.command()
 async def balance(ctx):
 
     user = get_user(ctx.author.id)
