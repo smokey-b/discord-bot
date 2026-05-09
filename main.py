@@ -9,6 +9,7 @@ import time
 
 # ================= CONFIG =================
 ADMIN_USER_ID = 980819870495166474
+DATA_FILE = "data.json"
 
 # ================= SETUP =================
 intents = discord.Intents.default()
@@ -20,8 +21,6 @@ bot = commands.Bot(
 )
 
 # ================= DATA =================
-DATA_FILE = "data.json"
-
 def load_data():
 
     if not os.path.exists(DATA_FILE):
@@ -30,6 +29,7 @@ def load_data():
     try:
         with open(DATA_FILE, "r") as f:
             return json.load(f)
+
     except:
         return {}
 
@@ -58,7 +58,7 @@ def get_user(user_id):
 
         save_data()
 
-    # Fix old accounts automatically
+    # Fix older accounts automatically
     if "premium_points" not in data[uid]:
         data[uid]["premium_points"] = 0
 
@@ -563,40 +563,47 @@ class SpinAgainView(discord.ui.View):
 
         user["premium_points"] -= 1
 
-        roll = random.randint(1, 100)
+        # ================= NEW ODDS =================
+        roll = random.randint(1, 1000)
 
-        # 67%
-        if roll <= 67:
-
+        # 25% Nothing
+        if roll <= 250:
             prize = "Nothing ❌"
 
-        # 20%
-        elif roll <= 87:
+        # 55% 1 Xanax
+        elif roll <= 800:
 
             user["inventory"]["xanax"] += 1
 
             prize = "1 Xanax 💊"
 
-        # 9%
-        elif roll <= 96:
+        # 12% 2 Xanax
+        elif roll <= 920:
 
             user["inventory"]["xanax"] += 2
 
             prize = "2 Xanax 💊💊"
 
-        # 3%
-        elif roll <= 99:
+        # 6% 5 Xanax
+        elif roll <= 980:
 
             user["inventory"]["xanax"] += 5
 
             prize = "5 Xanax 💊💊💊💊💊"
 
-        # 1%
+        # 1.8% 20 Xanax
+        elif roll <= 998:
+
+            user["inventory"]["xanax"] += 20
+
+            prize = "20 Xanax 💊🔥"
+
+        # 0.2% Donator Pack
         else:
 
             user["inventory"]["donator pack"] += 1
 
-            prize = "1 Donator Pack 📦"
+            prize = "Donator Pack 📦 (ULTRA RARE)"
 
         update_user(
             interaction.user.id,
@@ -765,36 +772,47 @@ async def wheel(ctx):
 
     user["premium_points"] -= 1
 
+    # ================= NEW ODDS =================
     roll = random.randint(1, 1000)
 
-# 25% Nothing
-if roll <= 250:
-    prize = "Nothing ❌"
+    # 25% Nothing
+    if roll <= 250:
+        prize = "Nothing ❌"
 
-# 55% 1 Xanax
-elif roll <= 800:
-    user["inventory"]["xanax"] += 1
-    prize = "1 Xanax 💊"
+    # 55% 1 Xanax
+    elif roll <= 800:
 
-# 12% 2 Xanax
-elif roll <= 920:
-    user["inventory"]["xanax"] += 2
-    prize = "2 Xanax 💊💊"
+        user["inventory"]["xanax"] += 1
 
-# 6% 5 Xanax
-elif roll <= 980:
-    user["inventory"]["xanax"] += 5
-    prize = "5 Xanax 💊💊💊💊💊"
+        prize = "1 Xanax 💊"
 
-# 1.8% 20 Xanax
-elif roll <= 998:
-    user["inventory"]["xanax"] += 20
-    prize = "20 Xanax 💊🔥"
+    # 12% 2 Xanax
+    elif roll <= 920:
 
-# 0.2% Donator Pack
-else:
-    user["inventory"]["donator pack"] += 1
-    prize = "Donator Pack 📦 (ULTRA RARE)"
+        user["inventory"]["xanax"] += 2
+
+        prize = "2 Xanax 💊💊"
+
+    # 6% 5 Xanax
+    elif roll <= 980:
+
+        user["inventory"]["xanax"] += 5
+
+        prize = "5 Xanax 💊💊💊💊💊"
+
+    # 1.8% 20 Xanax
+    elif roll <= 998:
+
+        user["inventory"]["xanax"] += 20
+
+        prize = "20 Xanax 💊🔥"
+
+    # 0.2% Donator Pack
+    else:
+
+        user["inventory"]["donator pack"] += 1
+
+        prize = "Donator Pack 📦 (ULTRA RARE)"
 
     update_user(
         ctx.author.id,
